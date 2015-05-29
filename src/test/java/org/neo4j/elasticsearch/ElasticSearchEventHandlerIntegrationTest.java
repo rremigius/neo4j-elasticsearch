@@ -17,6 +17,7 @@ import org.neo4j.graphdb.Transaction;
 import org.neo4j.kernel.impl.util.TestLogger;
 import org.neo4j.test.TestGraphDatabaseFactory;
 
+import java.util.ArrayList;
 import java.util.Map;
 
 import static java.util.Arrays.asList;
@@ -29,6 +30,7 @@ public class ElasticSearchEventHandlerIntegrationTest {
     public static final String LABEL = "MyLabel";
     public static final String INDEX = "my_index";
     public static final String INDEX_SPEC = INDEX + ":" + LABEL + "(foo)";
+    public static final String INDEX_ALL = "index_all";
     private GraphDatabaseService db;
     private JestClient client;
 
@@ -51,12 +53,14 @@ public class ElasticSearchEventHandlerIntegrationTest {
     private Map<String, String> config() {
         return stringMap(
                 "elasticsearch.host_name", "http://localhost:9200",
-                "elasticsearch.index_spec", INDEX_SPEC);
+                "elasticsearch.index_spec", INDEX_SPEC,
+                "elasticsearch.index_all", INDEX_ALL);
     }
 
     @After
     public void tearDown() throws Exception {
         client.execute(new DeleteIndex.Builder(INDEX).build());
+        client.execute(new DeleteIndex.Builder(INDEX_ALL).build());
         client.shutdownClient();
         db.shutdown();
     }
@@ -72,17 +76,27 @@ public class ElasticSearchEventHandlerIntegrationTest {
         
         Thread.sleep(1000); // wait for the async elasticsearch query to complete
 
-        JestResult response = client.execute(new Get.Builder(INDEX, id).build());
-
-        assertEquals(true, response.isSucceeded());
-        assertEquals(INDEX, response.getValue("_index"));
-        assertEquals(id, response.getValue("_id"));
-        assertEquals(LABEL, response.getValue("_type"));
-
-
-        Map source = response.getSourceAsObject(Map.class);
-        assertEquals(asList(LABEL), source.get("labels"));
-        assertEquals(id, source.get("id"));
-        assertEquals("foobar", source.get("foo"));
+        JestResult responseSpec = client.execute(new Get.Builder(INDEX, id).build());
+        JestResult responseAll = client.execute(new Get.Builder(INDEX_ALL, id).build());
+        
+        ArrayList<JestResult> responses = new ArrayList<JestResult>();
+        responses.add(responseSpec);
+        responses.add(responseAll); 
+        
+        assertEquals(INDEX, responseSpec.getValue("_index"));
+        assertEquals(INDEX_ALL, responseAll.getValue("_index"));
+        
+        for(JestResult response : responses) {
+	        assertEquals(true, response.isSucceeded());
+	        
+	        assertEquals(id, response.getValue("_id"));
+	        assertEquals(LABEL, response.getValue("_type"));
+	
+	
+	        Map source = response.getSourceAsObject(Map.class);
+	        assertEquals(asList(LABEL), source.get("labels"));
+	        assertEquals(id, source.get("id"));
+	        assertEquals("foobar", source.get("foo"));
+        }
     }
 }

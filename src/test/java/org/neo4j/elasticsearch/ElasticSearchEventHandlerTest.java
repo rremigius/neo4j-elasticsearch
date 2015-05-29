@@ -27,6 +27,7 @@ public class ElasticSearchEventHandlerTest {
 
     public static final String INDEX = "test-index";
     public static final String LABEL = "Label";
+    public static final String INDEX_ALL = "index-all";
     private ElasticSearchEventHandler handler;
     private GraphDatabaseService db;
     private JestClient client;
@@ -43,7 +44,7 @@ public class ElasticSearchEventHandlerTest {
         logger = new TestLogger();
         db = new TestGraphDatabaseFactory().newImpermanentDatabase();
 
-        handler = new ElasticSearchEventHandler(client, ElasticSearchIndexSpecParser.parseIndexSpec(INDEX + ":" + LABEL + "(foo)"), logger, db);
+        handler = new ElasticSearchEventHandler(client, ElasticSearchIndexSpecParser.parseIndexSpec(INDEX + ":" + LABEL + "(foo)"), INDEX_ALL, logger, db);
         // don't use async Jest for testing
         handler.setUseAsyncJest(false);
         db.registerTransactionEventHandler(handler);

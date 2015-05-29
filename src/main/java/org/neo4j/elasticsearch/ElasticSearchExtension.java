@@ -24,8 +24,9 @@ public class ElasticSearchExtension implements Lifecycle {
     private ElasticSearchEventHandler handler;
     private JestClient client;
     private Map indexSpec;
+    private String indexAll;
 
-    public ElasticSearchExtension(GraphDatabaseService gds, StringLogger logger, String hostName, String indexSpec) {
+    public ElasticSearchExtension(GraphDatabaseService gds, StringLogger logger, String hostName, String indexSpec, String indexAll) {
         Map iSpec;
 		try {
 			iSpec = ElasticSearchIndexSpecParser.parseIndexSpec(indexSpec);
@@ -42,6 +43,7 @@ public class ElasticSearchExtension implements Lifecycle {
         this.gds = gds;
         this.logger = logger;
         this.hostName = hostName;
+        this.indexAll = indexAll;
     }
 
     @Override
@@ -56,7 +58,7 @@ public class ElasticSearchExtension implements Lifecycle {
                 .build());
         client = factory.getObject();
 
-        handler = new ElasticSearchEventHandler(client,indexSpec,logger,gds);
+        handler = new ElasticSearchEventHandler(client,indexSpec,indexAll,logger,gds);
         gds.registerTransactionEventHandler(handler);
         logger.info("Connecting to ElasticSearch");
     }

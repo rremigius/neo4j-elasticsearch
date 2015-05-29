@@ -32,14 +32,16 @@ class ElasticSearchEventHandler implements TransactionEventHandler<Collection<Bu
     private final GraphDatabaseService gds;
     private final Map<Label, List<ElasticSearchIndexSpec>> indexSpecs;
     private final Set<Label> indexLabels;
+    private final String indexAll;
     private boolean useAsyncJest = true;
 
-    public ElasticSearchEventHandler(JestClient client, Map<Label, List<ElasticSearchIndexSpec>> indexSpec, StringLogger logger, GraphDatabaseService gds) {
+    public ElasticSearchEventHandler(JestClient client, Map<Label, List<ElasticSearchIndexSpec>> indexSpec, String indexAll, StringLogger logger, GraphDatabaseService gds) {
         this.client = client;
         this.indexSpecs = indexSpec;
         this.indexLabels = indexSpec.keySet();
         this.logger = logger;
         this.gds = gds;
+        this.indexAll = indexAll;
     }
 
     @Override
@@ -109,10 +111,19 @@ class ElasticSearchEventHandler implements TransactionEventHandler<Collection<Bu
         HashMap<IndexId, Index> reqs = new HashMap<>();
 
         for (Label l: node.getLabels()) {
+        	String id = id(node);
+        	if(indexAll != null) {
+        		reqs.put(new IndexId(indexAll, id), new Index.Builder(nodeToJson(node, null))
+                .type(l.name())
+                .index(indexAll)
+                .id(id)
+                .build());
+        	}
+        	
             if (!indexLabels.contains(l)) continue;
 
             for (ElasticSearchIndexSpec spec: indexSpecs.get(l)) {
-                String id = id(node), indexName = spec.getIndexName();
+                String indexName = spec.getIndexName();
                 reqs.put(new IndexId(indexName, id), new Index.Builder(nodeToJson(node, spec.getProperties()))
                 .type(l.name())
                 .index(indexName)
@@ -127,9 +138,14 @@ class ElasticSearchEventHandler implements TransactionEventHandler<Collection<Bu
         HashMap<IndexId, Delete> reqs = new HashMap<>();
 
     	for (Label l: node.getLabels()) {
+    		String id = id(node);
+        	if(indexAll != null) {
+        		reqs.put(new IndexId(indexAll, id),
+   			         new Delete.Builder(id).index(indexAll).build());
+        	}
     		if (!indexLabels.contains(l)) continue;
     		for (ElasticSearchIndexSpec spec: indexSpecs.get(l)) {
-    		    String id = id(node), indexName = spec.getIndexName();
+    		    String indexName = spec.getIndexName();
     			reqs.put(new IndexId(indexName, id),
     			         new Delete.Builder(id).index(indexName).build());
     		}
@@ -140,9 +156,18 @@ class ElasticSearchEventHandler implements TransactionEventHandler<Collection<Bu
     private Map<IndexId, Delete> deleteRequests(Node node, Label label) {
         HashMap<IndexId, Delete> reqs = new HashMap<>();
 
+        String id = id(node);
+    	if(indexAll != null) {
+    		reqs.put(new IndexId(indexAll, id),
+                    new Delete.Builder(id)
+                              .index(indexAll)
+                              .type(label.name())
+                              .build());
+    	}
+        
         if (indexLabels.contains(label)) {
             for (ElasticSearchIndexSpec spec: indexSpecs.get(label)) {
-                String id = id(node), indexName = spec.getIndexName();
+                String indexName = spec.getIndexName();
                 reqs.put(new IndexId(indexName, id),
                          new Delete.Builder(id)
                                    .index(indexName)
@@ -157,10 +182,20 @@ class ElasticSearchEventHandler implements TransactionEventHandler<Collection<Bu
     private Map<IndexId, Update> updateRequests(Node node) {
     	HashMap<IndexId, Update> reqs = new HashMap<>();
     	for (Label l: node.getLabels()) {
+    		String id = id(node);
+        	if(indexAll != null) {
+        		reqs.put(new IndexId(indexAll, id),
+    			        new Update.Builder(nodeToJson(node, null))
+                    			  .type(l.name())
+                    			  .index(indexAll)
+                    			  .id(id(node))
+                    			  .build());
+        	}
+        	
     		if (!indexLabels.contains(l)) continue;
 
     		for (ElasticSearchIndexSpec spec: indexSpecs.get(l)) {
-    		    String id = id(node), indexName = spec.getIndexName();
+    		    String indexName = spec.getIndexName();
     			reqs.put(new IndexId(indexName, id),
     			        new Update.Builder(nodeToJson(node, spec.getProperties()))
                     			  .type(l.name())
@@ -178,12 +213,18 @@ class ElasticSearchEventHandler implements TransactionEventHandler<Collection<Bu
     }
 
     private Map nodeToJson(Node node, Set<String> properties) {
-        Map<String,Object> json = new LinkedHashMap<>();
+    	Map<String,Object> json = new LinkedHashMap<>();
         json.put("id", id(node));
         json.put("labels", labels(node));
-        for (String prop : properties) {
-            Object value = node.getProperty(prop);
-            json.put(prop, value);
+        if(properties == null) {
+        	for(String prop : node.getPropertyKeys()) {
+        		json.put(prop, node.getProperty(prop));
+        	}
+        } else {
+	        for (String prop : properties) {
+	            Object value = node.getProperty(prop);
+	            json.put(prop, value);
+	        }
         }
         return json;
     }
