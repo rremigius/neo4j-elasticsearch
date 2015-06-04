@@ -33,6 +33,7 @@ class ElasticSearchEventHandler implements TransactionEventHandler<Collection<Bu
     private final Map<Label, List<ElasticSearchIndexSpec>> indexSpecs;
     private final Set<Label> indexLabels;
     private final String indexAll;
+    private final String indexAllType = "node";
     private boolean useAsyncJest = true;
 
     public ElasticSearchEventHandler(JestClient client, Map<Label, List<ElasticSearchIndexSpec>> indexSpec, String indexAll, StringLogger logger, GraphDatabaseService gds) {
@@ -46,26 +47,27 @@ class ElasticSearchEventHandler implements TransactionEventHandler<Collection<Bu
 
     @Override
     public Collection<BulkableAction> beforeCommit(TransactionData transactionData) throws Exception {
+    	boolean nodeDeleted = false;
         //List<BulkableAction> actions = new ArrayList<>(1000);
         Map<IndexId, BulkableAction> actions = new HashMap<>(1000);
         for (Node node : transactionData.createdNodes()) {
-            if (hasLabel(node)) actions.putAll(indexRequests(node));
+        	actions.putAll(indexRequests(node));
         }
-        for (Node node : transactionData.deletedNodes()) {
-            if (hasLabel(node)) actions.putAll(deleteRequests(node));
+        for (Node node : transactionData.deletedNodes()) { 
+        	actions.putAll(deleteRequests(node));
+        	nodeDeleted = true;
         }
         for (LabelEntry labelEntry : transactionData.assignedLabels()) {
-            if (hasLabel(labelEntry)) actions.putAll(indexRequests(labelEntry.node()));
+            actions.putAll(indexRequests(labelEntry.node()));
         }
         for (LabelEntry labelEntry : transactionData.removedLabels()) {
-            if (hasLabel(labelEntry)) actions.putAll(deleteRequests(labelEntry.node(), labelEntry.label()));
+        	actions.putAll(deleteRequests(labelEntry.node(), labelEntry.label()));
         }
         for (PropertyEntry<Node> propEntry : transactionData.assignedNodeProperties()) {
-            if (hasLabel(propEntry))
-                actions.putAll(indexRequests(propEntry.entity()));
+        	actions.putAll(indexRequests(propEntry.entity()));
         }
         for (PropertyEntry<Node> propEntry : transactionData.removedNodeProperties()) {
-            if (hasLabel(propEntry))
+            if (!nodeDeleted)
                 actions.putAll(updateRequests(propEntry.entity()));
         }
         return actions.isEmpty() ? Collections.<BulkableAction>emptyList() : actions.values();
@@ -110,16 +112,16 @@ class ElasticSearchEventHandler implements TransactionEventHandler<Collection<Bu
     private Map<IndexId, Index> indexRequests(Node node) {
         HashMap<IndexId, Index> reqs = new HashMap<>();
 
+        String id = id(node);
+    	if(indexAll != null) {
+    		reqs.put(new IndexId(indexAll, id), new Index.Builder(nodeToJson(node, null))
+            .type(indexAllType)
+            .index(indexAll)
+            .id(id)
+            .build());
+    	}
+        
         for (Label l: node.getLabels()) {
-        	String id = id(node);
-        	if(indexAll != null) {
-        		reqs.put(new IndexId(indexAll, id), new Index.Builder(nodeToJson(node, null))
-                .type(l.name())
-                .index(indexAll)
-                .id(id)
-                .build());
-        	}
-        	
             if (!indexLabels.contains(l)) continue;
 
             for (ElasticSearchIndexSpec spec: indexSpecs.get(l)) {
@@ -137,12 +139,13 @@ class ElasticSearchEventHandler implements TransactionEventHandler<Collection<Bu
     private Map<IndexId, Delete> deleteRequests(Node node) {
         HashMap<IndexId, Delete> reqs = new HashMap<>();
 
+        String id = id(node);
+    	if(indexAll != null) {
+    		reqs.put(new IndexId(indexAll, id),
+			         new Delete.Builder(id).index(indexAll).build());
+    	}
+        
     	for (Label l: node.getLabels()) {
-    		String id = id(node);
-        	if(indexAll != null) {
-        		reqs.put(new IndexId(indexAll, id),
-   			         new Delete.Builder(id).index(indexAll).build());
-        	}
     		if (!indexLabels.contains(l)) continue;
     		for (ElasticSearchIndexSpec spec: indexSpecs.get(l)) {
     		    String indexName = spec.getIndexName();
@@ -161,7 +164,7 @@ class ElasticSearchEventHandler implements TransactionEventHandler<Collection<Bu
     		reqs.put(new IndexId(indexAll, id),
                     new Delete.Builder(id)
                               .index(indexAll)
-                              .type(label.name())
+                              .type(indexAllType)
                               .build());
     	}
         
@@ -181,17 +184,18 @@ class ElasticSearchEventHandler implements TransactionEventHandler<Collection<Bu
     
     private Map<IndexId, Update> updateRequests(Node node) {
     	HashMap<IndexId, Update> reqs = new HashMap<>();
+
+    	String id = id(node);
+    	if(indexAll != null) {
+    		reqs.put(new IndexId(indexAll, id),
+			        new Update.Builder(nodeToJson(node, null))
+                			  .type(indexAllType)
+                			  .index(indexAll)
+                			  .id(id(node))
+                			  .build());
+    	}
+    	
     	for (Label l: node.getLabels()) {
-    		String id = id(node);
-        	if(indexAll != null) {
-        		reqs.put(new IndexId(indexAll, id),
-    			        new Update.Builder(nodeToJson(node, null))
-                    			  .type(l.name())
-                    			  .index(indexAll)
-                    			  .id(id(node))
-                    			  .build());
-        	}
-        	
     		if (!indexLabels.contains(l)) continue;
 
     		for (ElasticSearchIndexSpec spec: indexSpecs.get(l)) {

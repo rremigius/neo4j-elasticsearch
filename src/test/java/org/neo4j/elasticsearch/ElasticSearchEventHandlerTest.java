@@ -56,6 +56,7 @@ public class ElasticSearchEventHandlerTest {
     @After
     public void tearDown() throws Exception {
         client.execute(new DeleteIndex.Builder(INDEX).build());
+        client.execute(new DeleteIndex.Builder(INDEX_ALL).build());
         client.shutdownClient();
         db.unregisterTransactionEventHandler(handler);
         db.shutdown();
@@ -100,6 +101,7 @@ public class ElasticSearchEventHandlerTest {
         tx = db.beginTx();
         node = db.getNodeById(Integer.parseInt(id));
         assertEquals("bar", node.getProperty("foo")); // check that we get the node that we just added
+        assertEquals(LABEL,response.getValue("_type"));
         node.delete();
         tx.success();tx.close();
 

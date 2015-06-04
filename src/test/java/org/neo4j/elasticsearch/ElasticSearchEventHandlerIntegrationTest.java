@@ -31,6 +31,7 @@ public class ElasticSearchEventHandlerIntegrationTest {
     public static final String INDEX = "my_index";
     public static final String INDEX_SPEC = INDEX + ":" + LABEL + "(foo)";
     public static final String INDEX_ALL = "index_all";
+    public static final String LABEL_ALL = "node";
     private GraphDatabaseService db;
     private JestClient client;
 
@@ -68,33 +69,50 @@ public class ElasticSearchEventHandlerIntegrationTest {
     @Test
     public void testAfterCommit() throws Exception {
         Transaction tx = db.beginTx();
-        org.neo4j.graphdb.Node node = db.createNode(DynamicLabel.label(LABEL));
+        org.neo4j.graphdb.Node node = db.createNode(DynamicLabel.label("test"));
         String id = String.valueOf(node.getId());
         node.setProperty("foo", "foobar");
         tx.success();
         tx.close();
         
         Thread.sleep(1000); // wait for the async elasticsearch query to complete
-
+        
+        // Nothing specific should be indexed
         JestResult responseSpec = client.execute(new Get.Builder(INDEX, id).build());
+        assertEquals(false, responseSpec.getValue("found"));
+        
+        // Node should be indexed in general index
         JestResult responseAll = client.execute(new Get.Builder(INDEX_ALL, id).build());
+        assertEquals(INDEX_ALL, responseAll.getValue("_index"));
+        assertEquals(LABEL_ALL, responseAll.getValue("_type"));
+        
+        // Set label to the right label
+        tx = db.beginTx();
+        node.addLabel(DynamicLabel.label(LABEL));
+        tx.success();
+        tx.close();
+        
+        Thread.sleep(1000); // wait for the async elasticsearch query to complete
+        
+        // Node should now be found in both indexes
+        responseSpec = client.execute(new Get.Builder(INDEX, id).build());
+        responseAll = client.execute(new Get.Builder(INDEX_ALL, id).build());
+        
+        assertEquals(INDEX, responseSpec.getValue("_index"));
+        assertEquals(LABEL, responseSpec.getValue("_type"));
+        assertEquals(INDEX_ALL, responseAll.getValue("_index"));
+        assertEquals(LABEL_ALL, responseAll.getValue("_type"));
         
         ArrayList<JestResult> responses = new ArrayList<JestResult>();
         responses.add(responseSpec);
         responses.add(responseAll); 
         
-        assertEquals(INDEX, responseSpec.getValue("_index"));
-        assertEquals(INDEX_ALL, responseAll.getValue("_index"));
-        
         for(JestResult response : responses) {
 	        assertEquals(true, response.isSucceeded());
 	        
 	        assertEquals(id, response.getValue("_id"));
-	        assertEquals(LABEL, response.getValue("_type"));
-	
 	
 	        Map source = response.getSourceAsObject(Map.class);
-	        assertEquals(asList(LABEL), source.get("labels"));
 	        assertEquals(id, source.get("id"));
 	        assertEquals("foobar", source.get("foo"));
         }
