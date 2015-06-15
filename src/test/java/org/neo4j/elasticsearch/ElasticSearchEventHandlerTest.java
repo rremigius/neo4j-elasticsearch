@@ -22,6 +22,8 @@ import java.util.Map;
 
 import static java.util.Arrays.asList;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
+import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class ElasticSearchEventHandlerTest {
 
@@ -50,12 +52,12 @@ public class ElasticSearchEventHandlerTest {
         db.registerTransactionEventHandler(handler);
         
        // create index
-       client.execute(new CreateIndex.Builder(INDEX).build());
+       client.execute(new CreateIndex.Builder(INDEX_ALL).build());
     }
 
     @After
     public void tearDown() throws Exception {
-        client.execute(new DeleteIndex.Builder(INDEX).build());
+    	client.execute(new DeleteIndex.Builder(INDEX).build());
         client.execute(new DeleteIndex.Builder(INDEX_ALL).build());
         client.shutdownClient();
         db.unregisterTransactionEventHandler(handler);
@@ -70,17 +72,17 @@ public class ElasticSearchEventHandlerTest {
         node.setProperty("foo","bar");
         tx.success();tx.close();
 
-        JestResult response = client.execute(new Get.Builder(INDEX, id).build());
+        JestResult response = client.execute(new Get.Builder(INDEX_ALL, id).build());
 
         assertEquals(true,response.isSucceeded());
-        assertEquals(INDEX,response.getValue("_index"));
+        assertEquals(INDEX_ALL,response.getValue("_index"));
         assertEquals(id,response.getValue("_id"));
-        assertEquals(LABEL,response.getValue("_type"));
 
         Map source = response.getSourceAsObject(Map.class);
         assertEquals(asList(LABEL), source.get("labels"));
         assertEquals(id, source.get("id"));
-        assertEquals("bar", source.get("foo"));
+        assertThat(source.get("properties"), instanceOf(Map.class));
+        assertEquals("bar", ((Map)source.get("properties")).get("foo"));
     }
 
     @Test
@@ -92,20 +94,18 @@ public class ElasticSearchEventHandlerTest {
         node.setProperty("foo","bar");
         tx.success();tx.close();
 
-        JestResult response = client.execute(new Get.Builder(INDEX, id).build());
+        JestResult response = client.execute(new Get.Builder(INDEX_ALL, id).build());
         assertEquals(true,response.isSucceeded());
-        assertEquals(INDEX,response.getValue("_index"));
+        assertEquals(INDEX_ALL,response.getValue("_index"));
         assertEquals(id,response.getValue("_id"));
-        assertEquals(LABEL,response.getValue("_type"));
 
         tx = db.beginTx();
         node = db.getNodeById(Integer.parseInt(id));
         assertEquals("bar", node.getProperty("foo")); // check that we get the node that we just added
-        assertEquals(LABEL,response.getValue("_type"));
         node.delete();
         tx.success();tx.close();
 
-        response = client.execute(new Get.Builder(INDEX, id).type(LABEL).build());
+        response = client.execute(new Get.Builder(INDEX_ALL, id).type(LABEL).build());
         System.out.println(response.getJsonString());
         assertEquals(false, response.getValue("found"));
     }
@@ -119,22 +119,25 @@ public class ElasticSearchEventHandlerTest {
         node.setProperty("foo","bar");
         tx.success();tx.close();
 
-        JestResult response = client.execute(new Get.Builder(INDEX, id).build());
+        JestResult response = client.execute(new Get.Builder(INDEX_ALL, id).build());
         assertEquals(true,response.isSucceeded());
-        assertEquals(INDEX,response.getValue("_index"));
+        assertEquals(INDEX_ALL,response.getValue("_index"));
         assertEquals(id,response.getValue("_id"));
-        assertEquals(LABEL,response.getValue("_type"));
-        assertEquals("bar", response.getSourceAsObject(Map.class).get("foo"));
+        assertEquals("node",response.getValue("_type"));
+        
+        assertThat(response.getSourceAsObject(Map.class).get("properties"), instanceOf(Map.class));
+        assertEquals("bar", ((Map)response.getSourceAsObject(Map.class).get("properties")).get("foo"));
 
         tx = db.beginTx();
         node = db.getNodeById(Integer.parseInt(id));
         node.setProperty("foo", "quux");
         tx.success(); tx.close();
 
-        response = client.execute(new Get.Builder(INDEX, id).type(LABEL).build());
+        response = client.execute(new Get.Builder(INDEX_ALL, id).build());
         assertEquals(true,response.isSucceeded());
         assertEquals(true, response.getValue("found"));
-        assertEquals("quux", response.getSourceAsObject(Map.class).get("foo"));
+        assertThat(response.getSourceAsObject(Map.class).get("properties"), instanceOf(Map.class));
+        assertEquals("quux", ((Map)response.getSourceAsObject(Map.class).get("properties")).get("foo"));
     }
 
 
