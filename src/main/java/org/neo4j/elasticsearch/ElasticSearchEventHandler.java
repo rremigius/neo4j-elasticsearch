@@ -217,17 +217,24 @@ class ElasticSearchEventHandler implements TransactionEventHandler<Collection<Bu
     }
 
     private Map nodeToJson(Node node, Set<String> properties) {
-    	Map<String,Object> json = new LinkedHashMap<>();
+        Map<String,Object> json = new LinkedHashMap<>();
         json.put("id", id(node));
         json.put("labels", labels(node));
-        if(properties == null) {
-        	for(String prop : node.getPropertyKeys()) {
-        		json.put(prop, node.getProperty(prop));
+        
+        // Write properties one level deeper, to avoid conflicts with "id" and "labels"
+        Map<String,Object> jsonProperties = new LinkedHashMap<>();
+        json.put("properties", jsonProperties);
+        
+        // If specified properties are empty, copy all node properties
+        if(properties == null || properties.isEmpty()) {
+        	for (String prop : node.getPropertyKeys()) {
+        		jsonProperties.put(prop, node.getProperty(prop));
         	}
+	    // Else, only copy specified properties
         } else {
-	        for (String prop : properties) {
+        	for (String prop : properties) {
 	            Object value = node.getProperty(prop);
-	            json.put(prop, value);
+	            jsonProperties.put(prop, value);
 	        }
         }
         return json;

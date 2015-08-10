@@ -22,6 +22,8 @@ import java.util.Map;
 
 import static java.util.Arrays.asList;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
+import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class ElasticSearchEventHandlerTest {
 
@@ -80,7 +82,8 @@ public class ElasticSearchEventHandlerTest {
         Map source = response.getSourceAsObject(Map.class);
         assertEquals(asList(LABEL), source.get("labels"));
         assertEquals(id, source.get("id"));
-        assertEquals("bar", source.get("foo"));
+        assertThat(source.get("properties"), instanceOf(Map.class));
+        assertEquals("bar", ((Map)source.get("properties")).get("foo"));
     }
 
     @Test
@@ -124,7 +127,8 @@ public class ElasticSearchEventHandlerTest {
         assertEquals(INDEX,response.getValue("_index"));
         assertEquals(id,response.getValue("_id"));
         assertEquals(LABEL,response.getValue("_type"));
-        assertEquals("bar", response.getSourceAsObject(Map.class).get("foo"));
+        assertThat(response.getSourceAsObject(Map.class).get("properties"), instanceOf(Map.class));
+        assertEquals("bar", ((Map)response.getSourceAsObject(Map.class).get("properties")).get("foo"));
 
         tx = db.beginTx();
         node = db.getNodeById(Integer.parseInt(id));
@@ -134,7 +138,8 @@ public class ElasticSearchEventHandlerTest {
         response = client.execute(new Get.Builder(INDEX, id).type(LABEL).build());
         assertEquals(true,response.isSucceeded());
         assertEquals(true, response.getValue("found"));
-        assertEquals("quux", response.getSourceAsObject(Map.class).get("foo"));
+        assertThat(response.getSourceAsObject(Map.class).get("properties"), instanceOf(Map.class));
+        assertEquals("quux", ((Map)response.getSourceAsObject(Map.class).get("properties")).get("foo"));
     }
 
 

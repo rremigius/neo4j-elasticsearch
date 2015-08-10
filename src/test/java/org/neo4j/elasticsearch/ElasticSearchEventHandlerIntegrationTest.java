@@ -21,7 +21,9 @@ import java.util.ArrayList;
 import java.util.Map;
 
 import static java.util.Arrays.asList;
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 import static org.neo4j.helpers.collection.MapUtil.map;
 import static org.neo4j.helpers.collection.MapUtil.stringMap;
 
@@ -114,7 +116,8 @@ public class ElasticSearchEventHandlerIntegrationTest {
 	
 	        Map source = response.getSourceAsObject(Map.class);
 	        assertEquals(id, source.get("id"));
-	        assertEquals("foobar", source.get("foo"));
+	        assertThat(source.get("properties"), instanceOf(Map.class));
+	        assertEquals("foobar", ((Map)source.get("properties")).get("foo"));
         }
     }
 }
