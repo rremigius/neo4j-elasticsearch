@@ -35,6 +35,17 @@ With that in place, Neo4j will now track changes to nodes labeled
 `Person` or `Place` and keep our ES instance running on
 `localhost:9200` in sync.
 
+Suppose that we also want to index all nodes (independent of label or scheme)
+in a separate index called `all_nodes`, we would add the following directive 
+below the previous:
+
+----
+elasticsearch.index_all=all_nodes
+----
+
+The first two directives (`host_name` and `index_spec`) are required. The latter 
+(`index_all`) is optional.
+
 To perform an initial import, you can force a commit by executing a
 Cypher query like:
 
