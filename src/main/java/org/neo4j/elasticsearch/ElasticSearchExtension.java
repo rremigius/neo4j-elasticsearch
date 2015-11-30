@@ -5,12 +5,12 @@ import io.searchbox.client.JestClientFactory;
 import io.searchbox.client.config.HttpClientConfig;
 
 import org.neo4j.graphdb.GraphDatabaseService;
-import org.neo4j.kernel.impl.util.StringLogger;
 import org.neo4j.kernel.lifecycle.Lifecycle;
 
 import java.text.ParseException;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Logger;
 
 /**
  * @author mh
@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class ElasticSearchExtension implements Lifecycle {
     private final GraphDatabaseService gds;
-    private final StringLogger logger;
+    private final static Logger logger = Logger.getLogger(ElasticSearchExtension.class.getName());
     private final String hostName;
     private boolean enabled = true;
     private ElasticSearchEventHandler handler;
@@ -26,22 +26,21 @@ public class ElasticSearchExtension implements Lifecycle {
     private Map indexSpec;
     private String indexAll;
 
-    public ElasticSearchExtension(GraphDatabaseService gds, StringLogger logger, String hostName, String indexSpec, String indexAll) {
+    public ElasticSearchExtension(GraphDatabaseService gds, String hostName, String indexSpec, String indexAll) {
         Map iSpec;
 		try {
 			iSpec = ElasticSearchIndexSpecParser.parseIndexSpec(indexSpec);
 			if (iSpec.size() == 0) {
-				logger.error("ElasticSearch Integration: syntax error in index_spec");
+				logger.severe("ElasticSearch Integration: syntax error in index_spec");
 				enabled = false;
 			}
 			this.indexSpec = iSpec;
 		} catch (ParseException e) {
-            logger.error("ElasticSearch Integration: Can't define index twice");
+            logger.severe("ElasticSearch Integration: Can't define index twice");
             enabled = false;
 		}
 		logger.info("Elasticsearch Integration: Running " + hostName + " - " + indexSpec);
         this.gds = gds;
-        this.logger = logger;
         this.hostName = hostName;
         this.indexAll = indexAll;
     }
@@ -54,11 +53,11 @@ public class ElasticSearchExtension implements Lifecycle {
                 .Builder(hostName)
                 .multiThreaded(true)
                 .discoveryEnabled(true)
-                .discoveryFrequency(1l, TimeUnit.MINUTES)
+                .discoveryFrequency(1L, TimeUnit.MINUTES)
                 .build());
         client = factory.getObject();
 
-        handler = new ElasticSearchEventHandler(client,indexSpec,indexAll,logger,gds);
+        handler = new ElasticSearchEventHandler(client,indexSpec,indexAll,gds);
         gds.registerTransactionEventHandler(handler);
         logger.info("Connecting to ElasticSearch");
     }
