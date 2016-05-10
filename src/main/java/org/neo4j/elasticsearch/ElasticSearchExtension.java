@@ -52,7 +52,7 @@ public class ElasticSearchExtension implements Lifecycle {
         factory.setHttpClientConfig(new HttpClientConfig
                 .Builder(hostName)
                 .multiThreaded(true)
-                .discoveryEnabled(true)
+                .discoveryEnabled(false)
                 .discoveryFrequency(1L, TimeUnit.MINUTES)
                 .build());
         client = factory.getObject();
