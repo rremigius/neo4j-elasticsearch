@@ -48,12 +48,10 @@ class ElasticSearchEventHandler implements TransactionEventHandler<Collection<Bu
         	actions.putAll(indexRequests(node));
         }
         for (LabelEntry labelEntry : transactionData.assignedLabels()) {
-            if (hasLabel(labelEntry)) {
-                if (transactionData.isDeleted(labelEntry.node())) {
-                    actions.putAll(deleteRequests(labelEntry.node()));
-                } else {
-                    actions.putAll(indexRequests(labelEntry.node()));
-                }
+            if (transactionData.isDeleted(labelEntry.node())) {
+                actions.putAll(deleteRequests(labelEntry.node()));
+            } else {
+                actions.putAll(indexRequests(labelEntry.node()));
             }
         }
         for (LabelEntry labelEntry : transactionData.removedLabels()) {
@@ -63,7 +61,7 @@ class ElasticSearchEventHandler implements TransactionEventHandler<Collection<Bu
         	actions.putAll(indexRequests(propEntry.entity()));
         }
         for (PropertyEntry<Node> propEntry : transactionData.removedNodeProperties()) {
-            if (!transactionData.isDeleted(propEntry.entity()) && hasLabel(propEntry))
+            if (!transactionData.isDeleted(propEntry.entity()))
                 actions.putAll(updateRequests(propEntry.entity()));
         }
         return actions.isEmpty() ? Collections.<BulkableAction>emptyList() : actions.values();

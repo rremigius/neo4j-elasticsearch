@@ -1,5 +1,6 @@
 package org.neo4j.elasticsearch;
 
+import com.google.gson.JsonArray;
 import io.searchbox.client.JestClient;
 import io.searchbox.client.JestClientFactory;
 import io.searchbox.client.JestResult;
@@ -14,6 +15,9 @@ import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Label;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Transaction;
+import org.neo4j.graphdb.factory.GraphDatabaseFactoryState;
+import org.neo4j.kernel.api.exceptions.index.ExceptionDuringFlipKernelException;
+import org.neo4j.kernel.impl.core.NodeProxy;
 import org.neo4j.test.TestGraphDatabaseFactory;
 
 import java.util.List;
@@ -23,6 +27,7 @@ import static java.util.Collections.singletonList;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import java.util.HashMap;
 
 public class ElasticSearchEventHandlerTest {
 
@@ -160,6 +165,7 @@ public class ElasticSearchEventHandlerTest {
         Transaction tx = db.beginTx();
         node = db.getNodeById(Integer.parseInt(id));
         node.setProperty("foo", "quux");
+        node.addLabel(Label.label("bar"));
         tx.success(); tx.close();
 
         response = client.execute(new Get.Builder(INDEX, id).type(LABEL).build());
@@ -167,5 +173,28 @@ public class ElasticSearchEventHandlerTest {
         assertEquals(true, response.getValue("found"));
         assertThat(response.getSourceAsObject(Map.class).get("properties"), instanceOf(Map.class));
         assertEquals("quux", ((Map)response.getSourceAsObject(Map.class).get("properties")).get("foo"));
+        assertEquals("bar", ((java.util.ArrayList)response.getSourceAsObject(Map.class).get("labels")).get(1));
+    }
+
+    @Test
+    public void testCypher() throws Exception {
+        JestResult response = client.execute(new Get.Builder(INDEX, id).build());
+        assertIndexCreation(response);
+
+        assertThat(response.getSourceAsObject(Map.class).get("properties"), instanceOf(Map.class));
+        assertEquals("bar", ((Map)response.getSourceAsObject(Map.class).get("properties")).get("foo"));
+
+        Transaction tx = db.beginTx();
+        HashMap<String, Object> params = new HashMap<>();
+        params.put("id", Integer.parseInt(id));
+        org.neo4j.graphdb.Result result = db.execute("MATCH (n) WHERE id(n)={id} SET n:bar RETURN n", params);
+        NodeProxy node = (NodeProxy) result.next().get("n");
+        assertEquals(node.hasLabel(Label.label("bar")), true);
+        tx.success(); tx.close();
+
+        response = client.execute(new Get.Builder(INDEX, id).type(LABEL).build());
+        assertEquals(true,response.isSucceeded());
+        assertEquals(true, response.getValue("found"));
+        assertEquals("bar", ((java.util.ArrayList)response.getSourceAsObject(Map.class).get("labels")).get(1));
     }
 }
