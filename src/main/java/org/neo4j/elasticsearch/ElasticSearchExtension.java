@@ -3,6 +3,7 @@ package org.neo4j.elasticsearch;
 import io.searchbox.client.JestClient;
 import io.searchbox.client.JestClientFactory;
 
+import io.searchbox.client.config.HttpClientConfig;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.kernel.lifecycle.LifecycleAdapter;
 
@@ -62,8 +63,8 @@ public class ElasticSearchExtension extends LifecycleAdapter {
     }
 
     private JestClient getJestClient(final String hostName) throws Throwable {
-      JestClientFactory factory = new JestClientFactory();
-      factory.setHttpClientConfig(JestDefaultHttpConfigFactory.getConfigFor(hostName));
-      return factory.getObject();
+        JestClientFactory factory = new JestClientFactory();
+        factory.setHttpClientConfig(new HttpClientConfig.Builder(hostName).multiThreaded(true).readTimeout(60000).build());
+        return factory.getObject();
     }
 }
