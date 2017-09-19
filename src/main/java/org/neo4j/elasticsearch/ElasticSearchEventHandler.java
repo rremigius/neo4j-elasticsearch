@@ -228,9 +228,11 @@ class ElasticSearchEventHandler implements TransactionEventHandler<Collection<Bu
 	    // Else, only copy specified properties
         } else {
         	for (String prop : properties) {
-	            Object value = node.getProperty(prop);
-	            jsonProperties.put(prop, value);
-	        }
+				if (node.hasProperty(prop)) {
+					Object value = node.getProperty(prop);
+					jsonProperties.put(prop, value);
+				}
+			}
         }
 
         return json;
